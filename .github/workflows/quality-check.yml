@@ -1,0 +1,104 @@
+name: Quality Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - "release"
+    paths:
+      - "Source/**"
+      - "Tests/**"
+      - "CMakeLists.txt"
+      - "Makefile"
+      - ".github/workflows/quality-check.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Unit-Tests: # TODO: UT実装後に復活させる
+  #   name: Build and test
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+  #
+  #     - name: Clone JUCE
+  #       run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git /tmp/JUCE
+  #
+  #     - name: Configure CMake
+  #       run: >
+  #         cmake -S . -B build-ci
+  #         -DJUCE_PATH=/tmp/JUCE
+  #         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+  #         -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
+  #         -DCMAKE_C_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
+  #         -DCMAKE_EXE_LINKER_FLAGS="-fprofile-instr-generate"
+  #
+  #     - name: Build Tests
+  #       run: cmake --build build-ci --target DawCastPlugin_VST3 -- -j$(sysctl -n hw.ncpu)
+  #
+  #     - name: Run Tests
+  #       run: |
+  #         mkdir -p build-ci/coverage
+  #         cd build-ci && LLVM_PROFILE_FILE="${{ github.workspace }}/build-ci/coverage/%p.profraw" ctest --output-on-failure
+  #
+  #     - name: Generate Coverage Report
+  #       run: |
+  #         xcrun llvm-profdata merge -sparse build-ci/coverage/*.profraw -o build-ci/coverage/merged.profdata
+  #         TESTS_BIN=$(find build-ci -name DawCastTests -type f -perm +111 | head -1)
+  #         xcrun llvm-cov show "$TESTS_BIN" \
+  #           -instr-profile=build-ci/coverage/merged.profdata \
+  #           -ignore-filename-regex='(JUCE|_deps)' \
+  #           > build-ci/coverage/llvm-cov-report.txt
+  #
+  #     - name: Upload coverage report
+  #       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+  #       with:
+  #         name: coverage-report
+  #         path: build-ci/coverage/llvm-cov-report.txt
+  #         retention-days: 1
+
+  SonarCloud:
+    name: SonarQube analysis
+    # needs: Unit-Tests # TODO: UT実装後にコメント解除
+    runs-on: macos-latest
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Clone JUCE
+        run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git /tmp/JUCE
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build-ci
+          -DJUCE_PATH=/tmp/JUCE
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Install Build Wrapper
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
+
+      - name: Build with Build Wrapper
+        run: >
+          build-wrapper-macosx-x86 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }}
+          cmake --build build-ci --target DawCastPlugin_VST3 -- -j$(sysctl -n hw.ncpu)
+
+      # - name: Download coverage report # TODO: UT実装後にコメント解除
+      #   uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      #   with:
+      #     name: coverage-report
+      #     path: build-ci/coverage
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
+            # TODO: UT実装後にコメント解除
+            # --define "sonar.cfamily.llvm-cov.reportPath=build-ci/coverage/llvm-cov-report.txt"

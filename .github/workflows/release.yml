@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release
+
+jobs:
+  release:
+    name: Build and publish macOS plugins
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from CMakeLists.txt
+        id: version
+        run: |
+          VERSION=$(grep -m1 'project(DawCast VERSION' CMakeLists.txt \
+            | sed 's/.*VERSION \([0-9.]*\).*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
+
+      - name: Get merged PR body
+        id: changelog
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$(gh pr list --base release --state merged --limit 1 --json body --jq '.[0].body // empty')
+          if [ -z "$BODY" ]; then
+            BODY="- Initial release"
+          fi
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$BODY"          >> "$GITHUB_OUTPUT"
+          echo "EOF"            >> "$GITHUB_OUTPUT"
+
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
+      - name: Clone JUCE
+        run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git /tmp/JUCE
+
+      # COPY_PLUGIN_AFTER_BUILD が有効なので、コピー先ディレクトリを事前に作成
+      - name: Create plugin install directories
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/VST3
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build-release
+          -DJUCE_PATH=/tmp/JUCE
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=12.3
+          -DDAWCAST_EMBED_FFMPEG=ON
+
+      # DawCastRecorder は DawCastPlugin_VST3 の依存として自動ビルドされる
+      # embed_ffmpeg.sh (POST_BUILD) も自動実行される
+      - name: Build VST3
+        run: >
+          cmake --build build-release
+          --target DawCastPlugin_VST3
+          --config Release
+          -- -j$(sysctl -n hw.ncpu)
+
+      - name: Build AU
+        run: >
+          cmake --build build-release
+          --target DawCastPlugin_AU
+          --config Release
+          -- -j$(sysctl -n hw.ncpu)
+
+      - name: Package artifacts
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+
+          VST3=$(find build-release -name "DawCast.vst3" -type d | head -1)
+          AU=$(find build-release   -name "DawCast.component" -type d | head -1)
+
+          [[ -d "$VST3" ]] || { echo "::error::VST3 bundle not found"; exit 1; }
+          [[ -d "$AU"   ]] || { echo "::error::AU bundle not found";   exit 1; }
+
+          (cd "$(dirname "$VST3")" && zip -r "$GITHUB_WORKSPACE/DawCast-${VERSION}-VST3-macOS.zip" "DawCast.vst3")
+          (cd "$(dirname "$AU")"   && zip -r "$GITHUB_WORKSPACE/DawCast-${VERSION}-AU-macOS.zip"   "DawCast.component")
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: DawCast v${{ steps.version.outputs.version }}
+          prerelease: false
+          files: |
+            DawCast-${{ steps.version.outputs.version }}-VST3-macOS.zip
+            DawCast-${{ steps.version.outputs.version }}-AU-macOS.zip
+          body: |
+            ### About the plugin
+
+            DawCast is a free, open-source VST3/AU plugin for recording your DAW session (screen + audio) without virtual audio devices.
+            For full details, see the [README](https://github.com/auditive-tokyo/DawCast#readme).
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ### Download
+
+            Scroll to the **Assets** section at the bottom of this page and download the zip for your format:
+
+            - `DawCast-${{ steps.version.outputs.version }}-VST3-macOS.zip` — VST3
+            - `DawCast-${{ steps.version.outputs.version }}-AU-macOS.zip` — AUv2
+
+            > **macOS Gatekeeper Notice**
+            > This build is not notarized. Follow the steps below to load it in your DAW.
+
+            ### Installation
+
+            **VST3** — `DawCast-${{ steps.version.outputs.version }}-VST3-macOS.zip`
+            1. Close your DAW
+            2. **(Updating from a previous version only)** Open Terminal and run:
+               ```
+               tccutil reset ScreenCapture com.auditive.dawcast.recorder
+               ```
+               *(This clears the old screen recording permission entry. Required because the new build has a different code hash and macOS would otherwise loop showing the permission dialog even though the toggle is already ON in System Settings.)*
+            3. Unzip the archive
+            4. Move `DawCast.vst3` to `/Library/Audio/Plug-Ins/VST3/`
+            5. Open Terminal and run the following commands:
+               ```
+               xattr -rd com.apple.quarantine /Library/Audio/Plug-Ins/VST3/DawCast.vst3
+               sudo codesign --force --deep --sign - /Library/Audio/Plug-Ins/VST3/DawCast.vst3
+               ```
+               *(The second command will ask for your login password)*
+            6. Open your DAW and load DawCast on the master channel
+            7. A screen recording permission dialog will appear — click **Open System Settings** and enable **DawCastRecorder**
+
+            **AU (Audio Unit)** — `DawCast-${{ steps.version.outputs.version }}-AU-macOS.zip`
+            1. Close your DAW
+            2. **(Updating from a previous version only)** Open Terminal and run:
+               ```
+               tccutil reset ScreenCapture com.auditive.dawcast.recorder
+               ```
+               *(This clears the old screen recording permission entry. Required because the new build has a different code hash and macOS would otherwise loop showing the permission dialog even though the toggle is already ON in System Settings.)*
+            3. Unzip the archive
+            4. Move `DawCast.component` to `/Library/Audio/Plug-Ins/Components/`
+            5. Open Terminal and run the following commands:
+               ```
+               xattr -rd com.apple.quarantine /Library/Audio/Plug-Ins/Components/DawCast.component
+               sudo codesign --force --deep --sign - /Library/Audio/Plug-Ins/Components/DawCast.component
+               ```
+               *(The second command will ask for your login password)*
+            6. Open your DAW and load DawCast on the master channel
+            7. A screen recording permission dialog will appear — click **Open System Settings** and enable **DawCastRecorder**
+
+            ### What's changed?
+
+            ${{ steps.changelog.outputs.changelog }}

@@ -1,0 +1,64 @@
+name: Create Release PR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Source/**"
+      - "CMakeLists.txt"
+      - "Resources/**"
+
+jobs:
+  create-pr:
+    name: Open PR to release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Create or update PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TODAY="Release $(date +%Y-%m-%d)"
+
+          # release ブランチ以降の新規コミットをchangelogに（マージコミット除外）
+          # リリース成果物に関係するパスのコミットのみ抽出
+          git fetch origin release 2>/dev/null || true
+          CHANGELOG=$(git log origin/release..HEAD --pretty=format:"- %s" --no-merges \
+            -- Source/ CMakeLists.txt Resources/)
+
+          MARKER="<!-- auto-changelog -->"
+          BODY_WITH_MARKER=$(printf '%s\n%s' "$CHANGELOG" "$MARKER")
+
+          EXISTING=$(gh pr list --base release --head main --state open --json number,title,body --jq '.[0]')
+          if [ -z "$EXISTING" ]; then
+            gh pr create \
+              --base release \
+              --head main \
+              --title "$TODAY" \
+              --body "$BODY_WITH_MARKER"
+          else
+            PR_NUMBER=$(echo "$EXISTING" | jq -r '.number')
+            PR_TITLE=$(echo "$EXISTING" | jq -r '.title')
+            PR_BODY=$(echo "$EXISTING" | jq -r '.body')
+
+            # タイトル（日付）が変わっていたら更新
+            if [ "$PR_TITLE" != "$TODAY" ]; then
+              gh pr edit "$PR_NUMBER" --title "$TODAY"
+              echo "PR #$PR_NUMBER title updated: '$PR_TITLE' → '$TODAY'"
+            fi
+
+            # マーカーが残っている＝手動編集されていない → body も更新
+            if echo "$PR_BODY" | grep -qF "$MARKER"; then
+              gh pr edit "$PR_NUMBER" --body "$BODY_WITH_MARKER"
+              echo "PR #$PR_NUMBER body updated (auto-changelog)"
+            else
+              echo "PR #$PR_NUMBER body was manually edited — skipping body update"
+            fi
+          fi

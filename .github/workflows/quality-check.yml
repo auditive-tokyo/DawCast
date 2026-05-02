@@ -79,6 +79,9 @@ jobs:
           -DJUCE_PATH=/tmp/JUCE
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
       - name: Install Build Wrapper
         uses: SonarSource/sonarqube-scan-action/install-build-wrapper@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
 

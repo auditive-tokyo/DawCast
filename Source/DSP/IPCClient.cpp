@@ -98,6 +98,8 @@ void IPCClient::sendStart(const StartParams &params) {
   if (params.outputPath.isNotEmpty())
     obj->setProperty("outputPath", juce::var(params.outputPath));
 
+  obj->setProperty("useProRes", juce::var(params.useProRes));
+
   sendJsonMessage(impl->connection, juce::var(obj));
 }
 

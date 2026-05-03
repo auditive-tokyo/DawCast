@@ -30,6 +30,7 @@ public:
     int regionX = 0, regionY = 0;
     int regionWidth = 0, regionHeight = 0; // Region モード用
     juce::String outputPath; // 出力ディレクトリ（空 = Recorder デフォルト使用）
+    bool useProRes = false; // false = H.264/AAC MP4, true = ProRes MOV
   };
 
   /** 録画アプリからのステータス通知 JSON を受け取るコールバック。

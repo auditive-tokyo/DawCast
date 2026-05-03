@@ -121,6 +121,7 @@ void DawCastProcessor::getStateInformation(juce::MemoryBlock &destData) {
   auto xml = std::make_unique<juce::XmlElement>("DawCastState");
   xml->setAttribute("outputPath", outputPath);
   xml->setAttribute("captureMode", captureMode);
+  xml->setAttribute("useProRes", useProRes ? 1 : 0);
   copyXmlToBinary(*xml, destData);
 }
 
@@ -128,6 +129,7 @@ void DawCastProcessor::setStateInformation(const void *data, int sizeInBytes) {
   if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
     outputPath = xml->getStringAttribute("outputPath", outputPath);
     captureMode = xml->getStringAttribute("captureMode", captureMode);
+    useProRes = xml->getIntAttribute("useProRes", useProRes ? 1 : 0) != 0;
   }
 }
 
@@ -148,6 +150,7 @@ void DawCastProcessor::startRecording(const IPCClient::StartParams &params) {
   IPCClient::StartParams p = params;
   p.sampleRate = currentSampleRate;
   p.outputPath = outputPath;
+  p.useProRes = useProRes;
 
   ipcClient.sendStart(p);
   // タイマーは Recorder からの "recording" 応答で開始する。

@@ -17,7 +17,7 @@ Insert it on your master channel, press REC, and you're recording.
 
 - **Audio**: captured directly from DAW's internal audio buffer in `processBlock()` — zero routing setup
 - **Video**: screen capture via ScreenCaptureKit at up to 60fps, hardware-accelerated by Apple Silicon
-- **Output**: H.264/AAC MP4 for sharing, ProRes MOV for editing — muxed with sample-accurate A/V sync
+- **Output**: H.264/AAC MP4 or ProRes/AAC MOV — selectable in the plugin UI, muxed with sample-accurate A/V sync
 - **Two-process architecture**: the recorder runs as a separate background process, so it can never crash your DAW
 
 ## Supported Formats

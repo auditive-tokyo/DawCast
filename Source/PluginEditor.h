@@ -32,6 +32,9 @@ private:
   juce::Label pathLabel;
   std::unique_ptr<juce::FileChooser> fileChooser;
 
+  // 出力フォーマット選択 UI
+  juce::ComboBox outputFormatBox;
+
   /** プリセット ID (1=Movies, 2=Desktop, 3=Downloads) に対応するフォルダパス。
    */
   static juce::File pathForPreset(int presetId) noexcept;

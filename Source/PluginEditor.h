@@ -18,10 +18,8 @@ private:
 
   DawCastProcessor &processorRef;
 
-  juce::TextButton recButton{
-      juce::String(juce::CharPointer_UTF8("\xe2\x97\x8f REC"))};
-  juce::TextButton stopButton{
-      juce::String(juce::CharPointer_UTF8("\xe2\x96\xa0 STOP"))};
+  juce::TextButton recButton{juce::String::fromUTF8("● REC")};
+  juce::TextButton stopButton{juce::String::fromUTF8("■ STOP")};
   juce::Label timeLabel;
   juce::Label statusLabel;
   juce::ComboBox captureModeBox;
@@ -31,6 +29,9 @@ private:
   juce::TextButton browseButton{"Browse..."};
   juce::Label pathLabel;
   std::unique_ptr<juce::FileChooser> fileChooser;
+
+  // 出力フォーマット選択 UI
+  juce::ComboBox outputFormatBox;
 
   /** プリセット ID (1=Movies, 2=Desktop, 3=Downloads) に対応するフォルダパス。
    */

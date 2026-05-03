@@ -101,12 +101,13 @@ jobs:
             DawCast-${{ steps.version.outputs.version }}-VST3-macOS.zip
             DawCast-${{ steps.version.outputs.version }}-AU-macOS.zip
           body: |
+            > **No virtual audio device. No routing. Just press REC.**  
+            > A VST3/AU plugin that records your DAW session — audio + screen — from inside the DAW.
+
             ### About the plugin
 
             DawCast is a free, open-source VST3/AU plugin for recording your DAW session (screen + audio) without virtual audio devices.
             For full details, see the [README](https://github.com/auditive-tokyo/DawCast#readme).
-
-            ${{ steps.changelog.outputs.changelog }}
 
             ### Download
 

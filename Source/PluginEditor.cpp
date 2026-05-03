@@ -115,10 +115,20 @@ DawCastEditor::DawCastEditor(DawCastProcessor &p)
   addAndMakeVisible(browseButton);
   addAndMakeVisible(pathLabel);
 
+  // ─── 出力フォーマット選択 ──────────────────────────────────
+  outputFormatBox.addItem("H.264 / AAC  (.mp4)", 1);
+  outputFormatBox.addItem("ProRes / AAC (.mov)", 2);
+  outputFormatBox.setSelectedId(processorRef.getUseProRes() ? 2 : 1,
+                                juce::dontSendNotification);
+  outputFormatBox.onChange = [this] {
+    processorRef.setUseProRes(outputFormatBox.getSelectedId() == 2);
+  };
+  addAndMakeVisible(outputFormatBox);
+
   // 200ms ごとに UI を更新
   startTimer(200);
 
-  setSize(300, 175);
+  setSize(300, 200);
 }
 
 DawCastEditor::~DawCastEditor() { stopTimer(); }
@@ -149,6 +159,7 @@ void DawCastEditor::timerCallback() {
   captureModeBox.setEnabled(!rec);
   pathPresetBox.setEnabled(!rec);
   browseButton.setEnabled(!rec);
+  outputFormatBox.setEnabled(!rec);
 }
 
 juce::String DawCastEditor::formatElapsed(juce::int64 elapsedMs) noexcept {
@@ -188,6 +199,11 @@ void DawCastEditor::resized() {
 
   area.removeFromTop(2);
   pathLabel.setBounds(area.removeFromTop(14));
+
+  area.removeFromTop(4);
+
+  // 出力フォーマット
+  outputFormatBox.setBounds(area.removeFromTop(24));
 
   area.removeFromTop(4);
 

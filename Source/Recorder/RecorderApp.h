@@ -23,8 +23,8 @@ public:
   RecorderApp();
   ~RecorderApp() override;
 
-  const juce::String getApplicationName() override { return "DawCastRecorder"; }
-  const juce::String getApplicationVersion() override { return "0.1.0"; }
+  const juce::String getApplicationName() override { return "DawCastRecorder"; }    // NOSONAR - must match JUCE base class signature
+  const juce::String getApplicationVersion() override { return "0.1.0"; }           // NOSONAR - must match JUCE base class signature
   bool moreThanOneInstanceAllowed() override { return false; }
 
   void initialise(const juce::String &commandLine) override;

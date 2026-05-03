@@ -86,7 +86,7 @@ void RecorderApp::initialise(const juce::String &commandLine) {
         CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
 
         const void *data = CVPixelBufferGetBaseAddress(pixbuf);
-        const int stride = (int)CVPixelBufferGetBytesPerRow(pixbuf);
+        const auto stride = static_cast<int>(CVPixelBufferGetBytesPerRow(pixbuf));
 
         {
           juce::ScopedLock sl(muxerLock);
@@ -175,6 +175,7 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
   // ── JSON からパラメータ取得 ────────────────────────────────────
   const double sampleRate = static_cast<double>(json["sampleRate"]);
   const juce::String modeStr = json["captureMode"].toString();
+  const bool useProRes = static_cast<bool>(json["useProRes"]);
 
   ScreenRecorder::CaptureMode mode = ScreenRecorder::CaptureMode::EntireDisplay;
   ScreenRecorder::ApplicationTarget appTarget;
@@ -205,7 +206,7 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
     outputManager->setOutputDirectory(juce::File(outputPath));
 
   // ── 出力ファイルパスを確定 ─────────────────────────────────────
-  currentOutputFile = outputManager->generateOutputFile(false);
+  currentOutputFile = outputManager->generateOutputFile(useProRes);
 
   // ── FFmpegMuxer を開く ─────────────────────────────────────────
   {
@@ -216,6 +217,7 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
     muxSettings.width = kOutputWidth;
     muxSettings.height = kOutputHeight;
     muxSettings.fps = kOutputFps;
+    muxSettings.useProRes = useProRes;
 
     juce::ScopedLock sl(muxerLock);
     if (!ffmpegMuxer->open(muxSettings)) {

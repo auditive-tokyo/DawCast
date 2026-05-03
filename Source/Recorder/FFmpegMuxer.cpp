@@ -97,6 +97,7 @@ bool FFmpegMuxer::open(const Settings &settings) {
         settings.useProRes ? AV_CODEC_ID_PRORES : AV_CODEC_ID_H264;
 
     const AVCodec *codec = avcodec_find_encoder_by_name(hwName);
+    const bool usingHWCodec = (codec != nullptr);
     if (!codec)
       codec = avcodec_find_encoder_by_name(swName);
     if (!codec)
@@ -125,7 +126,9 @@ bool FFmpegMuxer::open(const Settings &settings) {
     vc->framerate = {settings.fps, 1};
 
     if (settings.useProRes) {
-      vc->pix_fmt = AV_PIX_FMT_YUV422P10LE;
+      // prores_videotoolbox: uyvy422 (packed 4:2:2, BGRA→UYVYはswscale対応済み)
+      // prores_ks (SW):      yuv422p10le (planar 10-bit 4:2:2)
+      vc->pix_fmt = usingHWCodec ? AV_PIX_FMT_UYVY422 : AV_PIX_FMT_YUV422P10LE;
       av_opt_set(vc->priv_data, "profile", "3", 0); // ProRes 422 HQ
     } else {
       vc->pix_fmt = AV_PIX_FMT_YUV420P;

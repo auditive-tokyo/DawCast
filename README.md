@@ -9,6 +9,9 @@
 [![Discussions](https://img.shields.io/github/discussions/auditive-tokyo/DawCast)](https://github.com/auditive-tokyo/DawCast/discussions)
 [![Issues](https://img.shields.io/github/issues/auditive-tokyo/DawCast)](https://github.com/auditive-tokyo/DawCast/issues)
 
+> **No virtual audio device. No routing. Just press REC.**  
+> A VST3/AU plugin that records your DAW session — audio + screen — from inside the DAW.
+
 ## Overview
 
 DawCast is a VST3/AU plugin that captures your DAW's master output audio and records your screen simultaneously — no virtual audio devices (BlackHole, Loopback, VB-Cable) required.

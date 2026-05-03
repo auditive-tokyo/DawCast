@@ -86,7 +86,7 @@ void RecorderApp::initialise(const juce::String &commandLine) {
         CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
 
         const void *data = CVPixelBufferGetBaseAddress(pixbuf);
-        const int stride = (int)CVPixelBufferGetBytesPerRow(pixbuf);
+        const auto stride = static_cast<int>(CVPixelBufferGetBytesPerRow(pixbuf));
 
         {
           juce::ScopedLock sl(muxerLock);

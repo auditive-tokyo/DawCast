@@ -27,8 +27,10 @@ public:
         "display"; // "display" | "application" | "region"
     juce::String
         applicationBundleId; // Application モード用 (例: "com.ableton.live")
-    int regionX = 0, regionY = 0;
-    int regionWidth = 0, regionHeight = 0; // Region モード用
+    int regionX = 0;
+    int regionY = 0;
+    int regionWidth = 0;
+    int regionHeight = 0; // Region モード用
     juce::String outputPath; // 出力ディレクトリ（空 = Recorder デフォルト使用）
     bool useProRes = false; // false = H.264/AAC MP4, true = ProRes MOV
   };

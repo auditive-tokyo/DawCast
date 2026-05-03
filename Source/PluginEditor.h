@@ -18,10 +18,8 @@ private:
 
   DawCastProcessor &processorRef;
 
-  juce::TextButton recButton{
-      juce::String(juce::CharPointer_UTF8("\xe2\x97\x8f REC"))};
-  juce::TextButton stopButton{
-      juce::String(juce::CharPointer_UTF8("\xe2\x96\xa0 STOP"))};
+  juce::TextButton recButton{juce::String::fromUTF8("● REC")};
+  juce::TextButton stopButton{juce::String::fromUTF8("■ STOP")};
   juce::Label timeLabel;
   juce::Label statusLabel;
   juce::ComboBox captureModeBox;

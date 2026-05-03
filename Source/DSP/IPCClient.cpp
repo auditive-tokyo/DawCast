@@ -77,7 +77,7 @@ void IPCClient::sendStart(const StartParams &params) {
   if (!impl->connection.isConnected())
     return;
 
-  auto *obj = new juce::DynamicObject();
+  auto *obj = new juce::DynamicObject(); // NOSONAR - juce::var takes ownership via reference counting
   obj->setProperty("cmd", juce::var("start"));
   obj->setProperty("timestamp", juce::var(juce::Time::currentTimeMillis()));
   obj->setProperty("sampleRate", juce::var(params.sampleRate));
@@ -107,7 +107,7 @@ void IPCClient::sendStop() {
   if (!impl->connection.isConnected())
     return;
 
-  auto *obj = new juce::DynamicObject();
+  auto *obj = new juce::DynamicObject(); // NOSONAR - juce::var takes ownership via reference counting
   obj->setProperty("cmd", juce::var("stop"));
   sendJsonMessage(impl->connection, juce::var(obj));
 }
@@ -116,7 +116,7 @@ void IPCClient::sendQuit() {
   if (!impl->connection.isConnected())
     return;
 
-  auto *obj = new juce::DynamicObject();
+  auto *obj = new juce::DynamicObject(); // NOSONAR - juce::var takes ownership via reference counting
   obj->setProperty("cmd", juce::var("quit"));
   sendJsonMessage(impl->connection, juce::var(obj));
 }

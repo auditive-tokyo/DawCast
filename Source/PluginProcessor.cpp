@@ -209,5 +209,5 @@ void DawCastProcessor::timerCallback() {
 }
 
 juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {
-  return new DawCastProcessor();
+  return new DawCastProcessor(); // NOSONAR - required by JUCE plugin API
 }

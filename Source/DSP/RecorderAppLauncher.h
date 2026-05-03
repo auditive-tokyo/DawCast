@@ -11,7 +11,7 @@
 class RecorderAppLauncher
 {
 public:
-    RecorderAppLauncher();
+    RecorderAppLauncher() = default;
     ~RecorderAppLauncher();
 
     /**

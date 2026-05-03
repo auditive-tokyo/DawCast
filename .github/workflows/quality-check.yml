@@ -83,7 +83,7 @@ jobs:
         run: brew install ffmpeg
 
       - name: Install Build Wrapper
-        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v8 # NOSONAR
 
       - name: Build with Build Wrapper
         run: >
@@ -97,11 +97,10 @@ jobs:
       #     path: build-ci/coverage
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
+        uses: SonarSource/sonarqube-scan-action@v8 # NOSONAR
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        # TODO: UT実装後に args へ追加 → --define "sonar.cfamily.llvm-cov.reportPath=build-ci/coverage/llvm-cov-report.txt"
         with:
           args: >
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
-            # TODO: UT実装後にコメント解除
-            # --define "sonar.cfamily.llvm-cov.reportPath=build-ci/coverage/llvm-cov-report.txt"

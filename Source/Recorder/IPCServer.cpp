@@ -32,7 +32,7 @@ public:
    *  返したポインタは InterprocessConnectionServer の内部 OwnedArray
    * が所有する。 */
   juce::InterprocessConnection *createConnectionObject() override {
-    return new DawCastServerConn(*this);
+    return new DawCastServerConn(*this); // NOSONAR - ownership transferred to JUCE's internal OwnedArray
   }
 
   // ─── DawCastServerConn から呼ばれるコールバック ─────────────
@@ -47,7 +47,7 @@ public:
     conn->sendMessage(block);
   }
 
-  void onConnectionLost(DawCastServerConn *conn) {
+  void onConnectionLost(const DawCastServerConn *conn) {
     juce::ScopedLock lock(connLock);
     if (currentConn == conn)
       currentConn = nullptr;
@@ -57,7 +57,7 @@ public:
       disconnectCallback();
   }
 
-  void onMessage(const juce::String &json) {
+  void onMessage(const juce::String &json) const {
     juce::Logger::writeToLog("IPCServer: command received: " + json);
     if (commandCallback)
       commandCallback(json);
@@ -73,10 +73,17 @@ public:
     }
   }
 
-  IPCServer::CommandCallback commandCallback;
-  std::function<void()> disconnectCallback;
+  void setCommandCallback(IPCServer::CommandCallback cb) {
+    commandCallback = std::move(cb);
+  }
+
+  void setDisconnectCallback(std::function<void()> cb) {
+    disconnectCallback = std::move(cb);
+  }
 
 private:
+  IPCServer::CommandCallback commandCallback;
+  std::function<void()> disconnectCallback;
   juce::CriticalSection connLock;
   DawCastServerConn *currentConn =
       nullptr; ///< weak ptr（所有は InterprocessConnectionServer）
@@ -123,9 +130,9 @@ void IPCServer::sendStatus(const juce::String &jsonStatus) {
 }
 
 void IPCServer::setCommandCallback(CommandCallback callback) {
-  impl->server.commandCallback = std::move(callback);
+  impl->server.setCommandCallback(std::move(callback));
 }
 
 void IPCServer::setDisconnectCallback(std::function<void()> callback) {
-  impl->server.disconnectCallback = std::move(callback);
+  impl->server.setDisconnectCallback(std::move(callback));
 }

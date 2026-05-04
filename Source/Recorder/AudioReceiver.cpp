@@ -52,7 +52,7 @@ bool AudioReceiver::open(const juce::String & /*shmName*/) {
   impl->layout = static_cast<const DawCastShm::Layout *>(ptr);
 
   // 現在の writePos から読み始める（接続前のデータはスキップ）
-  impl->readPos = impl->layout->writePos.load(std::memory_order_acquire);
+  impl->readPos = impl->layout->writePos.load();
 
   juce::Logger::writeToLog("AudioReceiver: shared memory opened, readPos=" +
                            juce::String(impl->readPos));
@@ -79,7 +79,7 @@ int AudioReceiver::read(juce::AudioBuffer<float> &dest, int numSamples) {
   if (layout == nullptr)
     return 0;
 
-  const int wp = layout->writePos.load(std::memory_order_acquire);
+  const int wp = layout->writePos.load();
   const int rp = impl->readPos;
   const int avail =
       (wp - rp + DawCastShm::kCapacitySamples) % DawCastShm::kCapacitySamples;
@@ -89,7 +89,7 @@ int AudioReceiver::read(juce::AudioBuffer<float> &dest, int numSamples) {
     return 0;
 
   const int numCh =
-      juce::jmin((int)DawCastShm::kNumChannels, dest.getNumChannels());
+      juce::jmin(DawCastShm::kNumChannels, dest.getNumChannels());
   for (int ch = 0; ch < numCh; ++ch) {
     float *dst = dest.getWritePointer(ch);
     for (int i = 0; i < toRead; ++i)
@@ -106,7 +106,7 @@ double AudioReceiver::recordingStartSecs() const noexcept {
     return 0.0;
 
   const uint64_t ticks =
-      layout->recordingStartMachTime.load(std::memory_order_acquire);
+      layout->recordingStartMachTime.load();
   if (ticks == 0)
     return 0.0;
 

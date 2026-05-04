@@ -125,10 +125,20 @@ DawCastEditor::DawCastEditor(DawCastProcessor &p)
   };
   addAndMakeVisible(outputFormatBox);
 
+  // ─── 出力解像度選択 ───────────────────────────────────────────
+  resolutionBox.addItem(juce::String::fromUTF8("HD  (1920×1080)"), 1);
+  resolutionBox.addItem(juce::String::fromUTF8("4K  (3840×2160)"), 2);
+  resolutionBox.setSelectedId(processorRef.getResolution4K() ? 2 : 1,
+                              juce::dontSendNotification);
+  resolutionBox.onChange = [this] {
+    processorRef.setResolution4K(resolutionBox.getSelectedId() == 2);
+  };
+  addAndMakeVisible(resolutionBox);
+
   // 200ms ごとに UI を更新
   startTimer(200);
 
-  setSize(300, 200);
+  setSize(300, 232);
 }
 
 DawCastEditor::~DawCastEditor() { stopTimer(); }
@@ -160,10 +170,11 @@ void DawCastEditor::timerCallback() {
   pathPresetBox.setEnabled(!rec);
   browseButton.setEnabled(!rec);
   outputFormatBox.setEnabled(!rec);
+  resolutionBox.setEnabled(!rec);
 }
 
 juce::String DawCastEditor::formatElapsed(juce::int64 elapsedMs) noexcept {
-  const int totalSec = (int)(elapsedMs / 1000);
+  const auto totalSec = (int)(elapsedMs / 1000);
   const int h = totalSec / 3600;
   const int m = (totalSec % 3600) / 60;
   const int s = totalSec % 60;
@@ -204,6 +215,11 @@ void DawCastEditor::resized() {
 
   // 出力フォーマット
   outputFormatBox.setBounds(area.removeFromTop(24));
+
+  area.removeFromTop(4);
+
+  // 出力解像度
+  resolutionBox.setBounds(area.removeFromTop(24));
 
   area.removeFromTop(4);
 

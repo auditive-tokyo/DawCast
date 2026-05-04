@@ -10,7 +10,10 @@
 [![Issues](https://img.shields.io/github/issues/auditive-tokyo/DawCast)](https://github.com/auditive-tokyo/DawCast/issues)
 
 > **No virtual audio device. No routing. Just press REC.**  
-> A VST3/AU plugin that records your DAW session — audio + screen — from inside the DAW.
+> Whether you're creating tutorial videos, sending demos to clients, teaching online lessons,  
+> or prepping content for Instagram Reels — DawCast records your DAW session (audio + screen) from inside the DAW.
+
+[![Watch the demo](https://img.youtube.com/vi/PQeORtuVYRI/maxresdefault.jpg)](https://youtu.be/PQeORtuVYRI)
 
 ## Overview
 

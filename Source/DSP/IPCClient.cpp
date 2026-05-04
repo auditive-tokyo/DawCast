@@ -100,6 +100,11 @@ void IPCClient::sendStart(const StartParams &params) {
 
   obj->setProperty("useProRes", juce::var(params.useProRes));
 
+  if (params.outputWidth > 0 && params.outputHeight > 0) {
+    obj->setProperty("outputWidth", juce::var(params.outputWidth));
+    obj->setProperty("outputHeight", juce::var(params.outputHeight));
+  }
+
   sendJsonMessage(impl->connection, juce::var(obj));
 }
 

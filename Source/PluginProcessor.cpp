@@ -109,7 +109,7 @@ void DawCastProcessor::releaseResources() {}
 void DawCastProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                     juce::MidiBuffer & /*midiMessages*/) {
   // 入力バッファをそのままスルーしつつ、録画中のみリングバッファに書き込む
-  if (recordingActive.load(std::memory_order_relaxed))
+  if (recordingActive.load())
     ringBuffer.write(buffer, buffer.getNumSamples());
 }
 
@@ -122,6 +122,7 @@ void DawCastProcessor::getStateInformation(juce::MemoryBlock &destData) {
   xml->setAttribute("outputPath", outputPath);
   xml->setAttribute("captureMode", captureMode);
   xml->setAttribute("useProRes", useProRes ? 1 : 0);
+  xml->setAttribute("resolution4K", resolution4K ? 1 : 0);
   copyXmlToBinary(*xml, destData);
 }
 
@@ -130,6 +131,8 @@ void DawCastProcessor::setStateInformation(const void *data, int sizeInBytes) {
     outputPath = xml->getStringAttribute("outputPath", outputPath);
     captureMode = xml->getStringAttribute("captureMode", captureMode);
     useProRes = xml->getIntAttribute("useProRes", useProRes ? 1 : 0) != 0;
+    resolution4K =
+        xml->getIntAttribute("resolution4K", resolution4K ? 1 : 0) != 0;
   }
 }
 
@@ -151,6 +154,13 @@ void DawCastProcessor::startRecording(const IPCClient::StartParams &params) {
   p.sampleRate = currentSampleRate;
   p.outputPath = outputPath;
   p.useProRes = useProRes;
+  if (resolution4K) {
+    p.outputWidth = 3840;
+    p.outputHeight = 2160;
+  } else {
+    p.outputWidth = 1920;
+    p.outputHeight = 1080;
+  }
 
   ipcClient.sendStart(p);
   // タイマーは Recorder からの "recording" 応答で開始する。

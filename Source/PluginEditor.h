@@ -33,6 +33,9 @@ private:
   // 出力フォーマット選択 UI
   juce::ComboBox outputFormatBox;
 
+  // 出力解像度選択 UI
+  juce::ComboBox resolutionBox;
+
   /** プリセット ID (1=Movies, 2=Desktop, 3=Downloads) に対応するフォルダパス。
    */
   static juce::File pathForPreset(int presetId) noexcept;

@@ -94,7 +94,7 @@ void AudioRingBuffer::write(const juce::AudioBuffer<float> &source,
   if (layout == nullptr)
     return;
 
-  const int wp = layout->writePos.load(std::memory_order_relaxed);
+  const int wp = layout->writePos.load();
 
   for (int ch = 0; ch < DawCastShm::kNumChannels; ++ch) {
     const float *src = source.getReadPointer(ch);
@@ -102,12 +102,11 @@ void AudioRingBuffer::write(const juce::AudioBuffer<float> &source,
       layout->samples[ch][(wp + i) % DawCastShm::kCapacitySamples] = src[i];
   }
 
-  layout->writePos.store((wp + numSamples) % DawCastShm::kCapacitySamples,
-                         std::memory_order_release);
+  layout->writePos.store((wp + numSamples) % DawCastShm::kCapacitySamples);
 }
 
 int AudioRingBuffer::read(juce::AudioBuffer<float> &dest, int numSamples) {
-  auto *layout = impl->layout;
+  const auto *layout = impl->layout;
   if (layout == nullptr)
     return 0;
 
@@ -126,11 +125,11 @@ int AudioRingBuffer::read(juce::AudioBuffer<float> &dest, int numSamples) {
 }
 
 int AudioRingBuffer::availableSamples() const noexcept {
-  auto *layout = impl->layout;
+  const auto *layout = impl->layout;
   if (layout == nullptr)
     return 0;
 
-  const int wp = layout->writePos.load(std::memory_order_acquire);
+  const int wp = layout->writePos.load();
   const int rp = impl->localReadPos;
   return (wp - rp + DawCastShm::kCapacitySamples) %
          DawCastShm::kCapacitySamples;
@@ -141,7 +140,7 @@ void AudioRingBuffer::reset() noexcept {
   if (layout == nullptr)
     return;
 
-  layout->writePos.store(0, std::memory_order_relaxed);
+  layout->writePos.store(0);
   impl->localReadPos = 0;
 }
 
@@ -153,13 +152,12 @@ void AudioRingBuffer::setRecordingStart() noexcept {
   // 物理クロック（arm64 ではディスプレイ・音声ハードウェア共通）。
   // これを共有メモリに書くことで Recorder 側が映像と同一原点で
   // 音声 PTS を計算できる。
-  layout->recordingStartMachTime.store(mach_absolute_time(),
-                                       std::memory_order_release);
+  layout->recordingStartMachTime.store(mach_absolute_time());
 }
 
 void AudioRingBuffer::clearRecordingStart() noexcept {
   auto *layout = impl->layout;
   if (layout == nullptr)
     return;
-  layout->recordingStartMachTime.store(0, std::memory_order_release);
+  layout->recordingStartMachTime.store(0);
 }

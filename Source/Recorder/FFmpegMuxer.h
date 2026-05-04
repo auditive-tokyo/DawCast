@@ -26,9 +26,11 @@ public:
   bool open(const Settings &settings);
   void close();
 
-  /** 映像フレームを追加する（CMSampleBuffer のラッパーを追加予定）。 */
-  void writeVideoFrame(const void *pixelData, int stride,
-                       double timestampSeconds);
+  /** 映像フレームを追加する。srcWidth/srcHeight は実キャプチャ寸法。
+   *  出力サイズ（Settings.width/height）と異なる場合 swscale がリサイズする。
+   */
+  void writeVideoFrame(const uint8_t *pixelData, int stride, int srcWidth,
+                       int srcHeight, double timestampSeconds);
 
   /** 音声サンプルを追加する。 */
   void writeAudioSamples(const juce::AudioBuffer<float> &buffer,

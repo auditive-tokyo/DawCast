@@ -13,12 +13,13 @@ public:
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override;
 
+  using juce::AudioProcessor::processBlock;
   void processBlock(juce::AudioBuffer<float> &, juce::MidiBuffer &) override;
 
   juce::AudioProcessorEditor *createEditor() override;
   bool hasEditor() const override { return true; }
 
-  const juce::String getName() const override { return JucePlugin_Name; }
+  const juce::String getName() const override { return JucePlugin_Name; } // NOSONAR - base class signature requires const return type
 
   bool acceptsMidi() const override { return false; }
   bool producesMidi() const override { return false; }
@@ -27,9 +28,9 @@ public:
 
   int getNumPrograms() override { return 1; }
   int getCurrentProgram() override { return 0; }
-  void setCurrentProgram(int) override {}
-  const juce::String getProgramName(int) override { return {}; }
-  void changeProgramName(int, const juce::String &) override {}
+  void setCurrentProgram(int) override { /* single preset – no-op */ }
+  const juce::String getProgramName(int) override { return {}; } // NOSONAR - base class signature requires const return type
+  void changeProgramName(int, const juce::String &) override { /* single preset – no-op */ }
 
   void getStateInformation(juce::MemoryBlock &destData) override;
   void setStateInformation(const void *data, int sizeInBytes) override;
@@ -60,6 +61,10 @@ public:
   bool getUseProRes() const noexcept { return useProRes; }
   void setUseProRes(bool v) noexcept { useProRes = v; }
 
+  /** 4K (3840x2160) 出力。false = HD (1920x1080) */
+  bool getResolution4K() const noexcept { return resolution4K; }
+  void setResolution4K(bool v) noexcept { resolution4K = v; }
+
   /** ホストアプリ（DAW）の Bundle ID を返す。取得できない場合は空文字列。 */
   static juce::String getHostBundleID() noexcept;
 
@@ -75,6 +80,7 @@ private:
   juce::String outputPath;
   juce::String captureMode{"display"};
   bool useProRes{false};
+  bool resolution4K{false};
 
   // ── Recorder 自動再起動用 Timer ───────────────────────────
   // "disconnected" ステータス受信時にシングルショットで起動し、

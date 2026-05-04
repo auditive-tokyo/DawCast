@@ -21,6 +21,8 @@ struct FFmpegMuxer::Impl {
   AVStream *videoStream = nullptr;
   AVFrame *videoFrame = nullptr;
   SwsContext *swsCtx = nullptr;
+  int swsSrcWidth = 0; // swsCtx 生成時の入力寸法（変わったら再生成）
+  int swsSrcHeight = 0;
   int64_t videoFrameIdx = 0;
 
   // 音声・映像共通の時刻原点（秒）。
@@ -35,9 +37,10 @@ struct FFmpegMuxer::Impl {
   AVFrame *audioFrame = nullptr;
   SwrContext *swrCtx = nullptr;
   AVAudioFifo *audioFifo = nullptr;
-  int64_t audioPts = 0;            // FIFO から emit した累積サンプル数
-  int64_t audioStartSamples = 0;   // 映像 firstTs を 0 とした時の音声開始サンプル位置
-  bool audioStartAligned = false;  // 上記オフセットを確定したか
+  int64_t audioPts = 0; // FIFO から emit した累積サンプル数
+  int64_t audioStartSamples =
+      0; // 映像 firstTs を 0 とした時の音声開始サンプル位置
+  bool audioStartAligned = false; // 上記オフセットを確定したか
 
   FFmpegMuxer::Settings settings;
   bool opened = false;
@@ -162,14 +165,9 @@ bool FFmpegMuxer::open(const Settings &settings) {
       return false;
     }
 
-    // swscale: 入力 BGRA → エンコーダの入力フォーマット
-    impl->swsCtx = sws_getContext(
-        settings.width, settings.height, AV_PIX_FMT_BGRA, settings.width,
-        settings.height, vc->pix_fmt, SWS_BICUBIC, nullptr, nullptr, nullptr);
-    if (!impl->swsCtx) {
-      close();
-      return false;
-    }
+    // swscale は初回フレームで実キャプチャ寸法が判明してから
+    // 遅延生成する（writeVideoFrame() 内）。キャプチャ寸法は Retina /
+    // 非 Retina / DAW ウィンドウサイズにより不定のため。
   }
 
   // ── audio stream ──────────────────────────────────────────────
@@ -285,7 +283,7 @@ void FFmpegMuxer::close() {
 
   if (impl->opened) {
     // 残留音声データをフラッシュ
-    if (impl->audioFifo && impl->audioCtx) {
+    if (impl->audioFifo && impl->audioCtx && impl->audioFrame) {
       const int frameSize =
           impl->audioCtx->frame_size > 0 ? impl->audioCtx->frame_size : 1024;
       const int remaining = av_audio_fifo_size(impl->audioFifo);
@@ -327,6 +325,8 @@ void FFmpegMuxer::close() {
     sws_freeContext(impl->swsCtx);
     impl->swsCtx = nullptr;
   }
+  impl->swsSrcWidth = 0;
+  impl->swsSrcHeight = 0;
   if (impl->swrCtx) {
     swr_free(&impl->swrCtx);
   }
@@ -365,20 +365,42 @@ void FFmpegMuxer::close() {
   impl->headerWritten = false;
 }
 
-void FFmpegMuxer::writeVideoFrame(const void *pixelData, int stride,
+void FFmpegMuxer::writeVideoFrame(const uint8_t *pixelData, int stride,
+                                  int srcWidth, int srcHeight,
                                   double timestampSeconds) {
   if (!impl->opened || !impl->videoCtx || !impl->videoFrame)
     return;
+
+  if (srcWidth <= 0 || srcHeight <= 0)
+    return;
+
+  // 初回 or キャプチャ寸法が変わったときに swscale コンテキストを作る。
+  // エンコーダ出力寸法（settings.width/height）は一定。
+  // キャプチャ == 出力 なら 1:1 コピー、それ以外は BICUBIC リサイズ。
+  if (impl->swsCtx == nullptr || impl->swsSrcWidth != srcWidth ||
+      impl->swsSrcHeight != srcHeight) {
+    if (impl->swsCtx) {
+      sws_freeContext(impl->swsCtx);
+      impl->swsCtx = nullptr;
+    }
+    impl->swsCtx = sws_getContext(srcWidth, srcHeight, AV_PIX_FMT_BGRA,
+                                  impl->settings.width, impl->settings.height,
+                                  impl->videoCtx->pix_fmt, SWS_BICUBIC, nullptr,
+                                  nullptr, nullptr);
+    if (!impl->swsCtx)
+      return;
+    impl->swsSrcWidth = srcWidth;
+    impl->swsSrcHeight = srcHeight;
+  }
 
   if (av_frame_make_writable(impl->videoFrame) < 0)
     return;
 
   // BGRA → エンコーダの入力フォーマットに変換
-  const uint8_t *srcData[4] = {static_cast<const uint8_t *>(pixelData), nullptr,
-                               nullptr, nullptr};
+  const uint8_t *srcData[4] = {pixelData, nullptr, nullptr, nullptr};
   const int srcLinesize[4] = {stride, 0, 0, 0};
 
-  sws_scale(impl->swsCtx, srcData, srcLinesize, 0, impl->settings.height,
+  sws_scale(impl->swsCtx, srcData, srcLinesize, 0, srcHeight,
             impl->videoFrame->data, impl->videoFrame->linesize);
 
   // 実タイムスタンプ（CMSampleBufferGetPresentationTimeStamp）を使って PTS
@@ -434,10 +456,12 @@ void FFmpegMuxer::writeAudioSamples(const juce::AudioBuffer<float> &buffer,
 
   // 音声と映像の時刻原点を一度だけ揃える。
   // - firstTs   : 必ず映像の最初のフレームで決定（writeVideoFrame でセット）
-  // - audioStartSamples : 最初の音声チャンク先頭が、firstTs を 0 とした時に何サンプル目か
-  // pump 側が送る timestampSeconds は連続サンプルストリームの「先頭」を指すので、
-  // 一度オフセットを決めれば以降は audioPts（FIFO から emit したサンプル数）を加算するだけで
-  // 単調増加・等間隔の PTS になる（二重カウントを避ける）。
+  // - audioStartSamples : 最初の音声チャンク先頭が、firstTs を 0
+  // とした時に何サンプル目か pump 側が送る timestampSeconds
+  // は連続サンプルストリームの「先頭」を指すので、
+  // 一度オフセットを決めれば以降は audioPts（FIFO から emit
+  // したサンプル数）を加算するだけで 単調増加・等間隔の PTS
+  // になる（二重カウントを避ける）。
   //
   // 映像がまだ到着していない間は firstTs が未確定のため FIFO に溜めておくだけで
   // エンコードはしない。これによりトラック先頭の映像 PTS = 0 を保て、
@@ -445,9 +469,8 @@ void FFmpegMuxer::writeAudioSamples(const juce::AudioBuffer<float> &buffer,
   if (impl->firstTs < 0.0)
     return; // 映像の最初のフレームを待つ
   if (!impl->audioStartAligned) {
-    impl->audioStartSamples = static_cast<int64_t>(
-        std::round((timestampSeconds - impl->firstTs) *
-                   impl->audioCtx->sample_rate));
+    impl->audioStartSamples = static_cast<int64_t>(std::round(
+        (timestampSeconds - impl->firstTs) * impl->audioCtx->sample_rate));
     if (impl->audioStartSamples < 0)
       impl->audioStartSamples = 0; // 負の PTS は不可
     impl->audioStartAligned = true;

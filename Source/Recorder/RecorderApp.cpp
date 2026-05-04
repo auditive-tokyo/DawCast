@@ -77,24 +77,27 @@ void RecorderApp::initialise(const juce::String &commandLine) {
   // ── フレームコールバック: ScreenCaptureKit → FFmpegMuxer ──────
   // ScreenRecorder.mm 側で SCStreamFrameInfoStatus をチェックし、
   // Blank / Suspended / Started 等の無効フレームは既に除外済み。
-  screenRecorder->setFrameCallback(
-      [this](CMSampleBufferRef sampleBuffer, double ts) {
-        CVPixelBufferRef pixbuf = CMSampleBufferGetImageBuffer(sampleBuffer);
-        if (!pixbuf)
-          return;
+  screenRecorder->setFrameCallback([this](CMSampleBufferRef sampleBuffer,
+                                          double ts) {
+    CVPixelBufferRef pixbuf = CMSampleBufferGetImageBuffer(sampleBuffer);
+    if (!pixbuf)
+      return;
 
-        CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
+    CVPixelBufferLockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
 
-        const void *data = CVPixelBufferGetBaseAddress(pixbuf);
-        const auto stride = static_cast<int>(CVPixelBufferGetBytesPerRow(pixbuf));
+    const auto *data =
+        static_cast<const uint8_t *>(CVPixelBufferGetBaseAddress(pixbuf));
+    const auto stride = static_cast<int>(CVPixelBufferGetBytesPerRow(pixbuf));
+    const auto srcW = static_cast<int>(CVPixelBufferGetWidth(pixbuf));
+    const auto srcH = static_cast<int>(CVPixelBufferGetHeight(pixbuf));
 
-        {
-          juce::ScopedLock sl(muxerLock);
-          ffmpegMuxer->writeVideoFrame(data, stride, ts);
-        }
+    {
+      juce::ScopedLock sl(muxerLock);
+      ffmpegMuxer->writeVideoFrame(data, stride, srcW, srcH, ts);
+    }
 
-        CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
-      });
+    CVPixelBufferUnlockBaseAddress(pixbuf, kCVPixelBufferLock_ReadOnly);
+  });
 
   // ── IPC コマンドコールバック ──────────────────────────────────
   // IPC 受信スレッドからメッセージスレッドへデリゲート
@@ -194,10 +197,15 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
   }
 
   // region モードのときは選択サイズを出力解像度にする（偶数アラインメント済み）
-  const int kOutputWidth =
-      (modeStr == "region" && regionW > 0) ? regionW : 1920;
-  const int kOutputHeight =
-      (modeStr == "region" && regionH > 0) ? regionH : 1080;
+  // それ以外は JSON の outputWidth/Height を優先（プラグイン UI で HD/4K 選択）
+  const int requestedW = static_cast<int>(json["outputWidth"]);
+  const int requestedH = static_cast<int>(json["outputHeight"]);
+  const int kOutputWidth = (modeStr == "region" && regionW > 0) ? regionW
+                           : (requestedW > 0)                   ? requestedW
+                                                                : 1920;
+  const int kOutputHeight = (modeStr == "region" && regionH > 0) ? regionH
+                            : (requestedH > 0)                   ? requestedH
+                                                                 : 1080;
   constexpr int kOutputFps = 60;
 
   // ── 保存先ディレクトリ（プラグインから指定された場合は上書き） ────────
@@ -246,8 +254,11 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
   audioPump->startThread();
 
   // ── ScreenRecorder 起動 ────────────────────────────────────────
-  if (!screenRecorder->startRecording(mode, kOutputFps, kOutputWidth,
-                                      kOutputHeight, appTarget, region)) {
+  // キャプチャは常にネイティブ解像度 (display.width × backingScaleFactor)。
+  // Retina ディスプレイで 4K 選択時は真の 4K、それ以外は swscale で拡縮される。
+  // CustomRegion は ScreenRecorder 内部で region.width × scale に設定される。
+  if (!screenRecorder->startRecording(mode, kOutputFps, /*width=*/0,
+                                      /*height=*/0, appTarget, region)) {
     audioPump->stopThread(1000);
     audioPump.reset();
     audioReceiver->close();
@@ -292,10 +303,10 @@ void RecorderApp::stopCapture() {
 
   // 完了通知: {"status":"done","path":"..."} をプラグインへ返す
   if (ipcServer) {
-    auto *obj = new juce::DynamicObject();
+    juce::DynamicObject::Ptr obj(new juce::DynamicObject());
     obj->setProperty("status", juce::var(juce::String("done")));
     obj->setProperty("path", juce::var(currentOutputFile.getFullPathName()));
-    ipcServer->sendStatus(juce::JSON::toString(juce::var(obj)));
+    ipcServer->sendStatus(juce::JSON::toString(juce::var(obj.get())));
   }
 
   DBG("DawCastRecorder: recording stopped → " +

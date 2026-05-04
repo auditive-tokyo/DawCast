@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <atomic>
 #include <cstdint>
 
@@ -35,14 +36,14 @@ constexpr int kCapacitySamples = 65536; // ~1.4 秒 @ 48kHz
  */
 struct Layout {
   std::atomic<int> writePos{0};
-  char _pad1[60]; // writePos を 64 バイトキャッシュラインに収める
+  std::array<char, 60> _pad1{}; // writePos を 64 バイトキャッシュラインに収める
 
   // 録画開始時の mach_absolute_time（ティック）。
   // arm64: uint64_t の std::atomic は常に lock-free。
   std::atomic<uint64_t> recordingStartMachTime{0};
-  char _pad2[56]; // recordingStartMachTime(8) + _pad2(56) = 64 バイト
+  std::array<char, 56> _pad2{}; // recordingStartMachTime(8) + _pad2(56) = 64 バイト
 
-  float samples[kNumChannels][kCapacitySamples];
+  std::array<std::array<float, kCapacitySamples>, kNumChannels> samples{};
 };
 
 } // namespace DawCastShm

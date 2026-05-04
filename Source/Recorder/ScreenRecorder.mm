@@ -167,12 +167,22 @@ bool ScreenRecorder::startRecording(CaptureMode mode, int fps, int width,
 
                                  SCStreamConfiguration *config =
                                      [[SCStreamConfiguration alloc] init];
+                                 // display.width/height は論理ピクセル（ポイント）。
+                                 // Retina では backingScaleFactor=2 なので物理ピクセルに変換する。
+                                 CGFloat scale = 1.0;
+                                 for (NSScreen *screen in [NSScreen screens]) {
+                                   NSNumber *sid = screen.deviceDescription[@"NSScreenNumber"];
+                                   if (sid && (CGDirectDisplayID)sid.unsignedIntValue == display.displayID) {
+                                     scale = screen.backingScaleFactor;
+                                     break;
+                                   }
+                                 }
                                  config.width = (width > 0)
                                                     ? (size_t)width
-                                                    : (size_t)display.width;
+                                                    : (size_t)(display.width * scale);
                                  config.height = (height > 0)
                                                      ? (size_t)height
-                                                     : (size_t)display.height;
+                                                     : (size_t)(display.height * scale);
                                  config.minimumFrameInterval =
                                      CMTimeMake(1, fps > 0 ? fps : 60);
                                  config.pixelFormat = kCVPixelFormatType_32BGRA;
@@ -190,9 +200,9 @@ bool ScreenRecorder::startRecording(CaptureMode mode, int fps, int width,
                                          region.x, region.y, region.width,
                                          region.height);
                                      if (width == 0)
-                                       config.width = (size_t)region.width;
+                                       config.width = (size_t)(region.width * scale);
                                      if (height == 0)
-                                       config.height = (size_t)region.height;
+                                       config.height = (size_t)(region.height * scale);
                                      juce::Logger::writeToLog(
                                          "ScreenRecorder: custom region (" +
                                          juce::String(region.x) + "," +
@@ -215,8 +225,7 @@ bool ScreenRecorder::startRecording(CaptureMode mode, int fps, int width,
                                      [[DawCastStreamOutput alloc] init];
                                  output.handler =
                                      ^(CMSampleBufferRef buf, double ts) {
-                                       if (!implPtr->recording.load(
-                                               std::memory_order_relaxed))
+                                       if (!implPtr->recording.load())
                                          return;
                                        if (implPtr->frameCallback)
                                          implPtr->frameCallback(buf, ts);
@@ -236,8 +245,7 @@ bool ScreenRecorder::startRecording(CaptureMode mode, int fps, int width,
                                                              .localizedDescription
                                                              .UTF8String)
                                                : ""));
-                                   implPtr->recording.store(
-                                       false, std::memory_order_release);
+                                   implPtr->recording.store(false);
                                    implPtr->stream = nil;
                                    implPtr->streamOutput = nil;
                                    implPtr->streamDelegate = nil;
@@ -277,8 +285,7 @@ bool ScreenRecorder::startRecording(CaptureMode mode, int fps, int width,
                                          juce::String(
                                              startError.localizedDescription
                                                  .UTF8String));
-                                     implPtr->recording.store(
-                                         false, std::memory_order_release);
+                                     implPtr->recording.store(false);
                                      implPtr->stream = nil;
                                    } else {
                                      juce::Logger::writeToLog(
@@ -286,8 +293,7 @@ bool ScreenRecorder::startRecording(CaptureMode mode, int fps, int width,
                                          juce::String((int)config.width) + "x" +
                                          juce::String((int)config.height) +
                                          " @" + juce::String(fps) + "fps)");
-                                     implPtr->recording.store(
-                                         true, std::memory_order_release);
+                                     implPtr->recording.store(true);
                                    }
                                  }];
                                }];
@@ -309,7 +315,7 @@ void ScreenRecorder::stopRecording() {
           juce::String(error.localizedDescription.UTF8String));
     }
     juce::Logger::writeToLog("ScreenRecorder: capture stopped");
-    implPtr->recording.store(false, std::memory_order_release);
+    implPtr->recording.store(false);
     implPtr->stream = nil;
     implPtr->streamOutput = nil;
     implPtr->streamDelegate = nil;
@@ -317,7 +323,7 @@ void ScreenRecorder::stopRecording() {
 }
 
 bool ScreenRecorder::isRecording() const noexcept {
-  return impl->recording.load(std::memory_order_acquire);
+  return impl->recording.load();
 }
 
 bool ScreenRecorder::hasScreenRecordingPermission() noexcept {

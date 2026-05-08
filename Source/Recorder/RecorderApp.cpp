@@ -4,6 +4,7 @@
 #include "FFmpegMuxer.h"
 #include "IPCServer.h"
 #include "OutputManager.h"
+#include "RecordingBorderWindow.h"
 #include "RegionSelectorWindow.h"
 #include "ScreenRecorder.h"
 
@@ -73,6 +74,7 @@ void RecorderApp::initialise(const juce::String &commandLine) {
   ffmpegMuxer = std::make_unique<FFmpegMuxer>();
   outputManager = std::make_unique<OutputManager>();
   regionSelector = std::make_unique<RegionSelectorWindow>();
+  recordingBorder = std::make_unique<RecordingBorderWindow>();
 
   // ── フレームコールバック: ScreenCaptureKit → FFmpegMuxer ──────
   // ScreenRecorder.mm 側で SCStreamFrameInfoStatus をチェックし、
@@ -272,6 +274,9 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
   }
 
   recordingActive = true;
+  // region モード時のみ録画中の枠インジケータを表示する
+  if (modeStr == "region" && regionW > 0 && regionH > 0 && recordingBorder)
+    recordingBorder->show(regionX, regionY, regionW, regionH);
   ipcServer->sendStatus(R"({"status":"recording"})");
   DBG("DawCastRecorder: recording started → " +
       currentOutputFile.getFullPathName());
@@ -279,6 +284,10 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
 
 void RecorderApp::stopCapture() {
   recordingActive = false;
+
+  // 録画枠インジケータを先に隠す
+  if (recordingBorder)
+    recordingBorder->hide();
 
   // フレーム callback が以後呼ばれないよう先に停止
   if (screenRecorder)

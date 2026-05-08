@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(DawCast VERSION 0.1.0)
+project(DawCast VERSION 0.1.1)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -92,6 +92,7 @@ target_sources(DawCastRecorder
         Source/Recorder/RecorderApp.cpp
         Source/Recorder/ScreenRecorder.mm
         Source/Recorder/RegionSelectorWindow.mm
+        Source/Recorder/RecordingBorderWindow.mm
         Source/Recorder/AudioReceiver.cpp
         Source/Recorder/FFmpegMuxer.cpp
         Source/Recorder/IPCServer.cpp
@@ -121,6 +122,8 @@ target_include_directories(DawCastRecorder
 set_source_files_properties(Source/Recorder/ScreenRecorder.mm
     PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 set_source_files_properties(Source/Recorder/RegionSelectorWindow.mm
+    PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+set_source_files_properties(Source/Recorder/RecordingBorderWindow.mm
     PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 
 target_link_libraries(DawCastRecorder
@@ -237,7 +240,7 @@ target_compile_definitions(DawCastTests PRIVATE
     JUCE_USE_CURL=0
     JUCE_WEB_BROWSER=0
     JucePlugin_Name="DawCast"
-    JucePlugin_VersionString="0.1.0"
+    JucePlugin_VersionString="0.1.1"
 )
 target_include_directories(DawCastTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Source

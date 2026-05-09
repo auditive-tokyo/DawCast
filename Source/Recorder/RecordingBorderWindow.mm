@@ -98,9 +98,10 @@ static const NSTimeInterval kBlinkInterval = 0.6; // ● の点滅周期（秒�
 // ─── Impl ─────────────────────────────────────────────────────────────
 
 struct RecordingBorderWindow::Impl {
-  NSWindow *window = nil;
-  DawCastBorderView *view = nil;
-  NSTimer *blinkTimer = nil;
+  NSWindow *window;
+  DawCastBorderView *view;
+  NSTimer *blinkTimer;
+  Impl() : window(nil), view(nil), blinkTimer(nil) {}
 };
 
 // ─── RecordingBorderWindow ────────────────────────────────────────────

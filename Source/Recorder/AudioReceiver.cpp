@@ -92,8 +92,9 @@ int AudioReceiver::read(juce::AudioBuffer<float> &dest, int numSamples) {
       juce::jmin(DawCastShm::kNumChannels, dest.getNumChannels());
   for (int ch = 0; ch < numCh; ++ch) {
     float *dst = dest.getWritePointer(ch);
+    const auto uch = static_cast<size_t>(ch);
     for (int i = 0; i < toRead; ++i)
-      dst[i] = layout->samples[ch][(rp + i) % DawCastShm::kCapacitySamples];
+      dst[i] = layout->samples[uch][static_cast<size_t>((rp + i) % DawCastShm::kCapacitySamples)];
   }
 
   impl->readPos = (rp + toRead) % DawCastShm::kCapacitySamples;

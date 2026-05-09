@@ -4,6 +4,7 @@
 #include "FFmpegMuxer.h"
 #include "IPCServer.h"
 #include "OutputManager.h"
+#include "RecordingBorderWindow.h"
 #include "RegionSelectorWindow.h"
 #include "ScreenRecorder.h"
 
@@ -73,6 +74,7 @@ void RecorderApp::initialise(const juce::String &commandLine) {
   ffmpegMuxer = std::make_unique<FFmpegMuxer>();
   outputManager = std::make_unique<OutputManager>();
   regionSelector = std::make_unique<RegionSelectorWindow>();
+  recordingBorder = std::make_unique<RecordingBorderWindow>();
 
   // ── フレームコールバック: ScreenCaptureKit → FFmpegMuxer ──────
   // ScreenRecorder.mm 側で SCStreamFrameInfoStatus をチェックし、
@@ -145,9 +147,7 @@ void RecorderApp::handleCommand(const juce::String &jsonStr) {
 }
 
 void RecorderApp::startCapture(const juce::var &json) {
-  const juce::String modeStr = json["captureMode"].toString();
-
-  if (modeStr == "region") {
+  if (const juce::String modeStr = json["captureMode"].toString(); modeStr == "region") {
     // 矩形選択 UI を表示し、完了後に beginCapture() を呼ぶ（非同期）
     regionSelector->show([this, json](int rx, int ry, int rw, int rh) {
       if (rw <= 0 || rh <= 0) {
@@ -176,9 +176,9 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
   }
 
   // ── JSON からパラメータ取得 ────────────────────────────────────
-  const double sampleRate = static_cast<double>(json["sampleRate"]);
-  const juce::String modeStr = json["captureMode"].toString();
-  const bool useProRes = static_cast<bool>(json["useProRes"]);
+  const auto sampleRate = static_cast<double>(json["sampleRate"]);
+  const juce::String modeStr = json["captureMode"].toString(); // NOSONAR - used across multiple branches
+  const auto useProRes = static_cast<bool>(json["useProRes"]);
 
   ScreenRecorder::CaptureMode mode = ScreenRecorder::CaptureMode::EntireDisplay;
   ScreenRecorder::ApplicationTarget appTarget;
@@ -198,19 +198,26 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
 
   // region モードのときは選択サイズを出力解像度にする（偶数アラインメント済み）
   // それ以外は JSON の outputWidth/Height を優先（プラグイン UI で HD/4K 選択）
-  const int requestedW = static_cast<int>(json["outputWidth"]);
-  const int requestedH = static_cast<int>(json["outputHeight"]);
-  const int kOutputWidth = (modeStr == "region" && regionW > 0) ? regionW
-                           : (requestedW > 0)                   ? requestedW
-                                                                : 1920;
-  const int kOutputHeight = (modeStr == "region" && regionH > 0) ? regionH
-                            : (requestedH > 0)                   ? requestedH
-                                                                 : 1080;
+  const auto requestedW = static_cast<int>(json["outputWidth"]);
+  const auto requestedH = static_cast<int>(json["outputHeight"]);
+  int kOutputWidth;
+  if (modeStr == "region" && regionW > 0)
+    kOutputWidth = regionW;
+  else if (requestedW > 0)
+    kOutputWidth = requestedW;
+  else
+    kOutputWidth = 1920;
+  int kOutputHeight;
+  if (modeStr == "region" && regionH > 0)
+    kOutputHeight = regionH;
+  else if (requestedH > 0)
+    kOutputHeight = requestedH;
+  else
+    kOutputHeight = 1080;
   constexpr int kOutputFps = 60;
 
   // ── 保存先ディレクトリ（プラグインから指定された場合は上書き） ────────
-  const juce::String outputPath = json["outputPath"].toString();
-  if (outputPath.isNotEmpty())
+  if (const juce::String outputPath = json["outputPath"].toString(); outputPath.isNotEmpty())
     outputManager->setOutputDirectory(juce::File(outputPath));
 
   // ── 出力ファイルパスを確定 ─────────────────────────────────────
@@ -272,6 +279,9 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
   }
 
   recordingActive = true;
+  // region モード時のみ録画中の枠インジケータを表示する
+  if (modeStr == "region" && regionW > 0 && regionH > 0 && recordingBorder)
+    recordingBorder->show(regionX, regionY, regionW, regionH);
   ipcServer->sendStatus(R"({"status":"recording"})");
   DBG("DawCastRecorder: recording started → " +
       currentOutputFile.getFullPathName());
@@ -279,6 +289,10 @@ void RecorderApp::beginCapture(const juce::var &json, int regionX, int regionY,
 
 void RecorderApp::stopCapture() {
   recordingActive = false;
+
+  // 録画枠インジケータを先に隠す
+  if (recordingBorder)
+    recordingBorder->hide();
 
   // フレーム callback が以後呼ばれないよう先に停止
   if (screenRecorder)

@@ -9,6 +9,7 @@ class AudioReceiver;
 class FFmpegMuxer;
 class OutputManager;
 class RegionSelectorWindow;
+class RecordingBorderWindow;
 
 /**
  * RecorderApp
@@ -56,6 +57,7 @@ private:
   std::unique_ptr<FFmpegMuxer> ffmpegMuxer;
   std::unique_ptr<OutputManager> outputManager;
   std::unique_ptr<RegionSelectorWindow> regionSelector;
+  std::unique_ptr<RecordingBorderWindow> recordingBorder;
 
   // ─── 音声ポンプスレッド ───────────────────────────────────────
   struct AudioPumpThread;

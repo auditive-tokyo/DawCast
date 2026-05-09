@@ -21,16 +21,9 @@ DawCastProcessor::DawCastProcessor()
     } else if (json.contains("\"recording\"")) {
       // Recorder が実際に録画を開始した瞬間にタイマーをスタート
       recordingStartMs.store(juce::Time::currentTimeMillis());
-    } else if (json.contains("\"cancelled\"")) {
-      // Region 選択キャンセル: 録画フラグとタイマーをリセット
-      recordingActive.store(false);
-      recordingStartMs.store(0);
-    } else if (json.contains("\"error\"")) {
-      // Recorder 側エラー（TCC 権限なし等）: 録画フラグとタイマーをリセット
-      recordingActive.store(false);
-      recordingStartMs.store(0);
-    } else if (json.contains("\"done\"")) {
-      // 録画完了
+    } else if (json.contains("\"cancelled\"") || json.contains("\"error\"") ||
+               json.contains("\"done\"")) {
+      // 録画完了・キャンセル・エラー: 録画フラグとタイマーをリセット
       recordingActive.store(false);
       recordingStartMs.store(0);
     }
@@ -104,7 +97,9 @@ void DawCastProcessor::prepareToPlay(double sampleRate,
   }
 }
 
-void DawCastProcessor::releaseResources() {}
+void DawCastProcessor::releaseResources() {
+  // No resources to release: ring buffer and IPC are managed by the processor lifetime.
+}
 
 void DawCastProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                     juce::MidiBuffer & /*midiMessages*/) {
@@ -114,7 +109,7 @@ void DawCastProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 }
 
 juce::AudioProcessorEditor *DawCastProcessor::createEditor() {
-  return new DawCastEditor(*this);
+  return new DawCastEditor(*this); // NOSONAR - required by JUCE plugin API
 }
 
 void DawCastProcessor::getStateInformation(juce::MemoryBlock &destData) {
@@ -126,7 +121,8 @@ void DawCastProcessor::getStateInformation(juce::MemoryBlock &destData) {
   copyXmlToBinary(*xml, destData);
 }
 
-void DawCastProcessor::setStateInformation(const void *data, int sizeInBytes) {
+void DawCastProcessor::setStateInformation(const void *data, // NOSONAR - required by JUCE AudioProcessor API
+                                           int sizeInBytes) {
   if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
     outputPath = xml->getStringAttribute("outputPath", outputPath);
     captureMode = xml->getStringAttribute("captureMode", captureMode);
@@ -143,11 +139,9 @@ void DawCastProcessor::startRecording(const IPCClient::StartParams &params) {
     return;
 
   // 未接続なら再接続を試みる
-  if (!ipcClient.isConnected()) {
-    if (!ipcClient.connect(launcher.currentPort())) {
-      juce::Logger::writeToLog("DawCastPlugin: cannot connect to recorder");
-      return;
-    }
+  if (!ipcClient.isConnected() && !ipcClient.connect(launcher.currentPort())) {
+    juce::Logger::writeToLog("DawCastPlugin: cannot connect to recorder");
+    return;
   }
 
   IPCClient::StartParams p = params;
@@ -179,9 +173,10 @@ juce::String DawCastProcessor::getHostBundleID() noexcept {
   // から取得する。
   if (CFBundleRef main = CFBundleGetMainBundle()) {
     if (CFStringRef bid = CFBundleGetIdentifier(main)) {
-      char buf[256] = {};
-      if (CFStringGetCString(bid, buf, sizeof(buf), kCFStringEncodingUTF8))
-        return juce::String::fromUTF8(buf);
+      std::string buf(256, '\0');
+      if (CFStringGetCString(bid, buf.data(), static_cast<CFIndex>(buf.size()),
+                             kCFStringEncodingUTF8))
+        return juce::String::fromUTF8(buf.c_str());
     }
   }
   return {};
